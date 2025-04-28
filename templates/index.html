@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical Terms Search</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .upload-section {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .search-section {
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .results {
+            margin-top: 20px;
+        }
+        .result-item {
+            padding: 10px;
+            border: 1px solid #eee;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Medical Terms Search</h1>
+        
+        <div class="upload-section">
+            <h2>Upload PDF</h2>
+            <input type="file" id="pdfFile" accept=".pdf" style="display: none;">
+            <button onclick="document.getElementById('pdfFile').click()">Choose PDF File</button>
+            <div id="uploadStatus"></div>
+        </div>
+
+        <div class="search-section">
+            <h2>Search Terms</h2>
+            <input type="text" id="searchInput" placeholder="Enter medical term or code..." disabled>
+            <div id="searchResults" class="results"></div>
+        </div>
+    </div>
+
+    <script>
+        const uploadStatus = document.getElementById('uploadStatus');
+        const searchInput = document.getElementById('searchInput');
+        const searchResults = document.getElementById('searchResults');
+        
+        document.getElementById('pdfFile').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                uploadStatus.innerHTML = '<div class="status">Uploading and processing...</div>';
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    uploadStatus.innerHTML = `<div class="status success">${data.message}</div>`;
+                    searchInput.disabled = false;
+                } else {
+                    uploadStatus.innerHTML = `<div class="status error">${data.error}</div>`;
+                }
+            } catch (error) {
+                uploadStatus.innerHTML = `<div class="status error">Error: ${error.message}</div>`;
+            }
+        });
+
+        let searchTimeout;
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(async () => {
+                const query = e.target.value.trim();
+                if (!query) {
+                    searchResults.innerHTML = '';
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/search?q=${encodeURIComponent(query)}`);
+                    const results = await response.json();
+                    
+                    searchResults.innerHTML = results.length ? results.map(result => `
+                        <div class="result-item" onclick="copyToClipboard('${result.code}')" style="cursor: pointer;">
+                            <strong>${result.code}</strong> - ${result.term}
+                        </div>
+                    `).join('') : '<div class="status">No results found</div>';
+                } catch (error) {
+                    searchResults.innerHTML = `<div class="status error">Error: ${error.message}</div>`;
+                }
+            }, 300);
+        });
+    </script>
+    <script>
+        async function copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                // Show a temporary success message
+                const tempMsg = document.createElement('div');
+                tempMsg.className = 'status success';
+                tempMsg.style.position = 'fixed';
+                tempMsg.style.top = '20px';
+                tempMsg.style.right = '20px';
+                tempMsg.style.zIndex = '1000';
+                tempMsg.textContent = 'Code copied to clipboard!';
+                document.body.appendChild(tempMsg);
+                
+                // Remove the message after 2 seconds
+                setTimeout(() => {
+                    tempMsg.remove();
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+            }
+        }
+    </script>
+</body>
+</html> 
